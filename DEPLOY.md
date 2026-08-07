@@ -1,19 +1,24 @@
 # Deploy — Portfólio Corvus (kauanfelipe.com)
 
-Contexto: droplet com **Docker + Caddy**. A ideia de segurança é simples e forte:
-**raiz pública** (o portfólio, que você divulga) e **todo o resto atrás de senha**,
-cada ferramenta num subdomínio próprio. Ninguém entra no que não deve.
+Contexto: droplet (`198.199.65.100`) com **Docker + Caddy**. A ideia de segurança é
+simples e forte: **raiz pública** (o portfólio, que você divulga) e **todo o resto
+atrás de senha**, cada ferramenta num subdomínio próprio. Ninguém entra no que não deve.
 
-Ajuste caminhos e o nome do serviço do Caddy ao teu `docker-compose.yml`.
-Onde aparecer `SEU_IP`, é o IP do droplet.
+Setup real deste droplet:
+- Container do Caddy: `apps_caddy_1`
+- Caddyfile: `/apps/Caddyfile` (no host)
+- Arquivos do site: `/apps/portfolio` (no host), montado como `/var/www/portfolio`
+  dentro do container do Caddy
 
 ---
 
 ## 1. Pasta do site no droplet
 
+Já existe (`/apps/portfolio`). Só recriar se for um droplet novo:
+
 ```bash
-ssh root@SEU_IP
-mkdir -p /srv/portfolio
+ssh root@198.199.65.100
+mkdir -p /apps/portfolio
 exit
 ```
 
@@ -22,7 +27,7 @@ exit
 Na pasta onde estão `index.html` e o `cv.pdf`:
 
 ```bash
-rsync -avz index.html cv.pdf root@SEU_IP:/srv/portfolio/
+scp index.html cv.pdf root@198.199.65.100:/apps/portfolio/
 ```
 
 > O `cv.pdf` fica na **mesma pasta** do `index.html`. Assim ele abre em
@@ -33,7 +38,7 @@ rsync -avz index.html cv.pdf root@SEU_IP:/srv/portfolio/
 
 ```caddyfile
 kauanfelipe.com {
-    root * /srv/portfolio
+    root * /var/www/portfolio
     file_server
     encode gzip
 }
@@ -46,8 +51,7 @@ Isso serve o portfólio e o CV, com HTTPS automático. Nada além disso é públ
 Gere o hash da senha (uma vez):
 
 ```bash
-# se o Caddy roda em container chamado "caddy":
-docker exec -it caddy caddy hash-password --plaintext 'SUA_SENHA_FORTE'
+docker exec -it apps_caddy_1 caddy hash-password --plaintext 'SUA_SENHA_FORTE'
 ```
 
 Copie o hash gerado e monte cada ferramenta assim:
@@ -81,18 +85,14 @@ Repita o bloco pra cada ferramenta (`app.`, `wms.` etc.), cada uma com o seu
 ## 5. Recarregar o Caddy
 
 ```bash
-# com container "caddy":
-docker exec -w /etc/caddy caddy caddy reload
-
-# se for systemd no host:
-# sudo systemctl reload caddy
+docker exec -w /etc/caddy apps_caddy_1 caddy reload
 ```
 
 ## 6. Checklist final
 
-- [ ] `index.html` e `cv.pdf` em `/srv/portfolio`
-- [ ] `kauanfelipe.com` abre o portfólio
-- [ ] `kauanfelipe.com/cv.pdf` abre/baixa o CV
+- [x] `index.html` e `cv.pdf` em `/apps/portfolio`
+- [x] `kauanfelipe.com` abre o portfólio
+- [x] `kauanfelipe.com/cv.pdf` abre/baixa o CV
 - [ ] cada subdomínio de ferramenta **pede senha**
 - [ ] nada além do portfólio abre sem senha
 - [ ] cadeado (HTTPS) verde em tudo
@@ -104,7 +104,7 @@ docker exec -w /etc/caddy caddy caddy reload
 Toda vez que mudar o site, é só:
 
 ```bash
-rsync -avz index.html cv.pdf root@SEU_IP:/srv/portfolio/
+scp index.html cv.pdf root@198.199.65.100:/apps/portfolio/
 ```
 
 Static file, sem rebuild. Caddy já serve na hora.
